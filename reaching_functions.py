@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 from scipy import signal as sgn
-
+from sklearn.manifold import TSNE
 import os
 
 
@@ -71,50 +71,65 @@ def filter_cursor(r, filter_curs):
     return filter_curs.filtered_value[0], filter_curs.filtered_value[1]
 
 
-def update_cursor_position_custom(body, map, rot, scale, off):
+def update_cursor_position_custom(body, map, rot, scale, off, model):
+        print('model')
+        print(model)
+        if model=='tsne':
+            X = np.vstack((map,body))
+            X_tsne = TSNE(n_components=2, random_state=0).fit_transform( X ) 
+            size = X_tsne.shape[0] 
+            cu  = X_tsne[size-1,:]
+        else:
+            if type(map) != tuple:
+                cu = np.dot(body, map)
+            else:
+                h = np.tanh(np.dot(body, map[0][0]) + map[1][0])
+                h = np.tanh(np.dot(h, map[0][1]) + map[1][1])
+                cu = np.dot(h, map[0][2]) + map[1][2]
 
-    if type(map) != tuple:
-        cu = np.dot(body, map)
-    else:
-        h = np.tanh(np.dot(body, map[0][0]) + map[1][0])
-        h = np.tanh(np.dot(h, map[0][1]) + map[1][1])
-        cu = np.dot(h, map[0][2]) + map[1][2]
+        # Applying rotation
+        cu[0] = cu[0] * np.cos(np.pi / 180 * rot) - cu[1] * np.sin(np.pi / 180 * rot)
+        cu[1] = cu[0] * np.sin(np.pi / 180 * rot) + cu[1] * np.cos(np.pi / 180 * rot)
 
-    # Applying rotation
-    cu[0] = cu[0] * np.cos(np.pi / 180 * rot) - cu[1] * np.sin(np.pi / 180 * rot)
-    cu[1] = cu[0] * np.sin(np.pi / 180 * rot) + cu[1] * np.cos(np.pi / 180 * rot)
+        # Applying scale
+        cu = cu * scale
 
-    # Applying scale
-    cu = cu * scale
+        # Applying offset
+        cu = cu + off
 
-    # Applying offset
-    cu = cu + off
-
-    return cu[0], cu[1]
+        return cu[0], cu[1]
 
 
-def update_cursor_position(body, map, rot_ae, scale_ae, off_ae, rot_custom, scale_custom, off_custom):
+def update_cursor_position(body, map, rot_ae, scale_ae, off_ae, rot_custom, scale_custom, off_custom,model):
 
-    if type(map) != tuple:
-        cu = np.dot(body, map)
-    else:
-        h = np.tanh(np.dot(body, map[0][0]) + map[1][0])
-        h = np.tanh(np.dot(h, map[0][1]) + map[1][1])
-        cu = np.dot(h, map[0][2]) + map[1][2]
+        if model=='tsne':
 
-    # Applying rotation, scale and offset computed after AE training
-    cu[0] = cu[0] * np.cos(np.pi / 180 * rot_ae) - cu[1] * np.sin(np.pi / 180 * rot_ae)
-    cu[1] = cu[0] * np.sin(np.pi / 180 * rot_ae) + cu[1] * np.cos(np.pi / 180 * rot_ae)
-    cu = cu * scale_ae
-    cu = cu + off_ae
+            X = np.vstack((map,body))
+            X_tsne = TSNE(n_components=2, random_state=0).fit_transform( X )   
+            size = X_tsne.shape[0] 
+            cu  = X_tsne[size-1,:]
+        else:
+            if type(map) != tuple:
+                cu = np.dot(body, map)
+            else:
+                h = np.tanh(np.dot(body, map[0][0]) + map[1][0])
+                h = np.tanh(np.dot(h, map[0][1]) + map[1][1])
+                cu = np.dot(h, map[0][2]) + map[1][2]
 
-    # Applying rotation, scale and offset computed after customization
-    cu[0] = cu[0] * np.cos(np.pi / 180 * rot_custom) - cu[1] * np.sin(np.pi / 180 * rot_custom)
-    cu[1] = cu[0] * np.sin(np.pi / 180 * rot_custom) + cu[1] * np.cos(np.pi / 180 * rot_custom)
-    cu = cu * scale_custom
-    cu = cu + off_custom
+        # Applying rotation, scale and offset computed after AE training
+        cu[0] = cu[0] * np.cos(np.pi / 180 * rot_ae) - cu[1] * np.sin(np.pi / 180 * rot_ae)
+        cu[1] = cu[0] * np.sin(np.pi / 180 * rot_ae) + cu[1] * np.cos(np.pi / 180 * rot_ae)
+        cu = cu * scale_ae
+        cu = cu + off_ae
 
-    return cu[0], cu[1]
+        # Applying rotation, scale and offset computed after customization
+        cu[0] = cu[0] * np.cos(np.pi / 180 * rot_custom) - cu[1] * np.sin(np.pi / 180 * rot_custom)
+        cu[1] = cu[0] * np.sin(np.pi / 180 * rot_custom) + cu[1] * np.cos(np.pi / 180 * rot_custom)
+        cu = cu * scale_custom
+        cu = cu + off_custom
+   
+
+        return cu[0], cu[1]
 
 
 def write_practice_files(r, body, timer_practice):

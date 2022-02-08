@@ -816,15 +816,28 @@ class PrincipalComponentAnalysis(object):
         self._pc = n_PCs
 
     def train_pca(self, train_signal, **kwargs):
+       
+        print('train sig')
+        print(train_signal[0])
         pca = PCA(n_components=len(train_signal[0]))
         pca.fit(train_signal)
         coeff = pca.components_.T
-
+        print("coeff")
+        print(coeff)
+        
+        
         train_score = np.matmul((train_signal - np.mean(train_signal, 0)), coeff)
+        print('train score1')
+        print(train_score)
         train_score[:, self._pc:] = 0
+        print('train score2')
+        print(train_score)
         train_score_out = train_score[:, 0:self._pc]
+        print('train score out')
+        print(train_score_out)
         train_signal_rec = np.matmul(train_score, coeff.T) + np.mean(train_signal, 0)
-
+        print('train scorerec')
+        print(train_signal_rec)
         if 'x_test' in kwargs:
             test_score = np.matmul((kwargs['x_test'] - np.mean(train_signal, 0)), coeff)
             test_score[:, self._pc:] = 0

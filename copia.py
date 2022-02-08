@@ -24,8 +24,37 @@ x = np.array(x)
 
 # randomly shuffle input
 np.random.shuffle(x)
+
+
 # define train/test split
-#prv=TSNE(n_components=2, *, perplexity=30.0, early_exaggeration=12.0, learning_rate='warn', n_iter=1000, n_iter_without_progress=300, min_grad_norm=1e-07, metric='euclidean', init='warn', verbose=0, random_state=None, method='barnes_hut', angle=0.5, n_jobs=None, square_distances='legacy')[source]
-X_embedded = TSNE(n_components=2, learning_rate='auto',  init='random').fit_transform(x)
-print(X_embedded)
-# define the pipeline
+thr = 80
+split = int(len(x) * thr / 100)
+train_signal = x[0:split, :]
+test_x = x[split:, :]
+_pc=2
+print('lunghezza')
+print(len(train_signal[0]))
+#pca = PCA(n_components=len(train_signal[0]))
+a = TSNE(n_components=_pc, learning_rate='auto',  init='random').fit_transform(x)
+#a è train score out
+tsne = TSNE(n_components=_pc, learning_rate='auto',  init='random')
+print(tsne.fit(train_signal))
+print(a)
+print(tsne)
+coeff = tsne.embedding_
+
+train_score = np.matmul((train_signal - np.mean(train_signal, 0)), coeff)
+train_score[:, _pc:] = 0
+train_score_out = train_score[:, 0:_pc]
+train_signal_rec = np.matmul(train_score, coeff.T) + np.mean(train_signal, 0)
+
+
+test_score = np.matmul((test_x - np.mean(train_signal, 0)), coeff)
+test_score[:, _pc:] = 0
+test_score_out = test_score[:, 0:_pc]
+test_signal_rec = np.matmul(test_score, coeff.T) + np.mean(train_signal, 0)
+
+         
+
+
+

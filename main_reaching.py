@@ -28,14 +28,14 @@ import pyautogui
 import mediapipe as mp
 # For training pca/autoencoder
 from compute_bomi_map import Autoencoder, PrincipalComponentAnalysis, compute_vaf
-
+from sklearn.manifold import TSNE
 pyautogui.PAUSE = 0.01  # set fps of cursor to 100Hz ish when mouse_enabled is True
 
 # Global variables initialisation
 MASTER=None
 prev_cx=0
 prev_cy=0
-
+model=''
 
 class MainApplication(tk.Frame):
     """
@@ -55,7 +55,7 @@ class MainApplication(tk.Frame):
         MASTER = self.master
         print('MASTER',MASTER)
         print('tk',tk.Frame)
-        self.btn_num_joints = Button(parent, text="Select Joints", command=self.select_joints)
+        self.btn_num_joints = Button(parent, text="Select Joints", borderwidth=3, relief="solid", command=self.select_joints,bg='green',fg='black')
         self.btn_num_joints.config(font=("Arial", self.font_size))
         self.btn_num_joints.grid(row=0, column=0, columnspan=2, padx=20, pady=30, sticky='nesw')
 
@@ -91,7 +91,7 @@ class MainApplication(tk.Frame):
         self.check6.config(font=("Arial", self.font_size))
         self.check6.grid(row=0, column=7, padx=(0, 20), pady=30, sticky='nesw')
 
-        self.btn_calib = Button(parent, text="Calibration", command=self.calibration)
+        self.btn_calib = Button(parent, text="Calibration", command=self.calibration, borderwidth=3, relief="solid", bg='white',fg='black')
         self.btn_calib["state"] = "disabled"
         self.btn_calib.config(font=("Arial", self.font_size))
         self.btn_calib.grid(row=1, column=0, columnspan=2, padx=20, pady=(20, 30), sticky='nesw')
@@ -105,7 +105,7 @@ class MainApplication(tk.Frame):
         self.lbl_calib.grid(row=1, column=2, columnspan=2, pady=(20, 30), sticky='w')
 
         # BoMI map button and checkboxes
-        self.btn_map = Button(parent, text="Calculate BoMI Map", command=self.train_map)
+        self.btn_map = Button(parent, text="Calculate BoMI Map", command=self.train_map, borderwidth=3, relief="solid", bg='green',fg='black')
         self.btn_map["state"] = "disabled"
         self.btn_map.config(font=("Arial", self.font_size))
         self.btn_map.grid(row=2, column=0, columnspan=2, padx=20, pady=(20, 30), sticky='nesw')
@@ -124,8 +124,14 @@ class MainApplication(tk.Frame):
         self.check_vae1 = Checkbutton(win, text="Variational AE", variable=self.check_vae)
         self.check_vae1.config(font=("Arial", self.font_size))
         self.check_vae1.grid(row=2, column=4, pady=(20, 30), sticky='w')
+        
+        self.check_tsne = BooleanVar()
+        self.check_tsne1= Checkbutton(win, text="TSNE", variable=self.check_tsne)
+        self.check_tsne1.config(font=("Arial", self.font_size))
+        self.check_tsne1.grid(row=2, column=5, pady=(30, 40), sticky='w')
 
-        self.btn_custom = Button(parent, text="Customization", command=self.customization)
+       
+        self.btn_custom = Button(parent, text="Customization", command=self.customization, borderwidth=3, relief="solid", bg='white',fg='black')
         self.btn_custom["state"] = "disabled"
         self.btn_custom.config(font=("Arial", self.font_size))
         self.btn_custom.grid(row=3, column=0, columnspan=2, padx=20, pady=(20, 30), sticky='nesw')
@@ -148,7 +154,7 @@ class MainApplication(tk.Frame):
 
         #############################################################
 
-        self.btn_close = Button(parent, text="Close", command=parent.destroy, bg="red")
+        self.btn_close = Button(parent, text="Close", command=parent.destroy, bg="red", borderwidth=3, relief="solid")
         self.btn_close.config(font=("Arial", self.font_size))
         self.btn_close.grid(row=8, column=0, columnspan=2, padx=20, pady=(20, 30), sticky='nesw')
 
@@ -209,6 +215,10 @@ class MainApplication(tk.Frame):
                 self.drPath = self.calibPath + 'AE/'
                 train_ae(self.calibPath, self.drPath)
                 self.dr_mode = 'ae'
+            elif self.check_tsne.get():
+                self.drPath = self.calibPath + 'TSNE/'
+                train_tsne(self.calibPath, self.drPath)
+                self.dr_mode = 'tsne'
             self.btn_custom["state"] = "normal"
         else:
             self.w = popupWindow(self.master, "Perform calibration first.")
@@ -452,12 +462,13 @@ def train_pca(calibPath, drPath):
     :param drPath: path to save BoMI forward map
     :return:
     """
+    global model
     r = Reaching()
     # read calibration file and remove all the initial zero rows
     xp = list(pd.read_csv(calibPath + 'Calib.txt', sep=' ', header=None).values)
     x = [i for i in xp if all(i)]
     x = np.array(x)
-
+    model='pca'
     # randomly shuffle input
     np.random.shuffle(x)
 
@@ -479,6 +490,7 @@ def train_pca(calibPath, drPath):
     if not os.path.exists(drPath):
         os.makedirs(drPath)
     np.savetxt(drPath + "weights1.txt", pca.components_[:, :2])
+
 
     print('BoMI forward map (PCA parameters) has been saved.')
 
@@ -513,6 +525,60 @@ def train_pca(calibPath, drPath):
 
     print('PCA scaling values has been saved. You can continue with customization.')
 
+def train_tsne(calibPath, drPath):
+    """
+    function to train BoMI forward map - TSNE
+    :param drPath: path to save BoMI forward map
+    :return:
+    """
+    global model
+    model='tsne'
+    r = Reaching()
+    # read calibration file and remove all the initial zero rows
+    xp = list(pd.read_csv(calibPath + 'Calib.txt', sep=' ', header=None).values)
+    x = [i for i in xp if all(i)]
+    x = np.array(x)
+    print(x)
+    # train PCA
+    tsne = TSNE(n_components=2, learning_rate='auto',  init='pca')
+    print('TSNE has been trained.')
+    #print(tsne.embedding_.T)
+    X_embedded=tsne.fit_transform(x)
+    # save weights and biases
+    if not os.path.exists(drPath):
+        os.makedirs(drPath)
+    np.savetxt(drPath + "weights1.txt", x)
+    
+   
+    print('BoMI forward map (PCA parameters) has been saved.')
+
+
+    # normalize latent space to fit the monitor coordinates
+    # Applying rotation
+    train_pc=X_embedded
+    rot = 0
+    train_pc[0] = train_pc[0] * np.cos(np.pi / 180 * rot) - train_pc[1] * np.sin(np.pi / 180 * rot)
+    train_pc[1] = train_pc[0] * np.sin(np.pi / 180 * rot) + train_pc[1] * np.cos(np.pi / 180 * rot)
+    # Applying scale
+    scale = [r.width / np.ptp(train_pc[:, 0]), r.height / np.ptp(train_pc[:, 1])]
+    train_pc = train_pc * scale
+    # Applying offset
+    off = [r.width / 2 - np.mean(train_pc[:, 0]), r.height / 2 - np.mean(train_pc[:, 1])]
+    train_pc = train_pc + off
+
+    # Plot latent space
+    plt.figure()
+    plt.scatter(train_pc[:, 0], train_pc[:, 1], c='green', s=20)
+    plt.title('Projections in workspace')
+    plt.axis("equal")
+
+    # save AE scaling values
+    with open(drPath + "rotation_dr.txt", 'w') as f:
+        print(rot, file=f)
+    np.savetxt(drPath + "scale_dr.txt", scale)
+    np.savetxt(drPath + "offset_dr.txt", off)
+
+    
 
 def train_ae(calibPath, drPath):
     """
@@ -520,6 +586,8 @@ def train_ae(calibPath, drPath):
     :param drPath: path to save BoMI forward map
     :return:
     """
+    global model
+    model='ae'
     r = Reaching()
 
     # Autoencoder parameters
@@ -596,6 +664,11 @@ def train_ae(calibPath, drPath):
 def load_bomi_map(dr_mode, drPath):
     if dr_mode == 'pca':
         map = pd.read_csv(drPath + 'weights1.txt', sep=' ', header=None).values
+    elif dr_mode == 'tsne':
+
+        map = pd.read_csv(drPath + 'weights1.txt', sep=' ', header=None).values
+        print('MAP')
+        print(map)
     elif dr_mode == 'ae':
         ws = []
         bs = []
@@ -702,7 +775,7 @@ def initialize_customization(self, dr_mode, drPath, num_joints, joints):
             r.body = np.copy(body)
 
             # apply BoMI forward map to body vector to obtain cursor position
-            r.crs_x, r.crs_y = reaching_functions.update_cursor_position_custom(r.body, map, rot, scale, off)
+            r.crs_x, r.crs_y = reaching_functions.update_cursor_position_custom(r.body, map, rot, scale, off, model)
 
             # Apply extra customization according to textbox values (try/except allows to catch invalid inputs)
             try:
@@ -1167,7 +1240,7 @@ def start_reaching(drPath, lbl_tgt, num_joints, joints, dr_mode, mouse_enabled):
 
             # apply BoMI forward map to body vector to obtain cursor position.
             r.crs_x, r.crs_y = reaching_functions.update_cursor_position \
-                (r.body, map, rot_dr, scale_dr, off_dr, rot_custom, scale_custom, off_custom)
+                (r.body, map, rot_dr, scale_dr, off_dr, rot_custom, scale_custom, off_custom, model)
 
             # Check if the crs is bouncing against any of the 4 walls:
             if r.crs_x >= r.width:
